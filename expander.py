@@ -7,9 +7,10 @@ from article import links_and_categories_batch, extract_pages
 import os
 import json
 from collections import deque
+import re
 
+INVALID_FILENAME_CHARS = r'[<>:"/\\|?*]'
 CHECKPOINT_FILE = "data/expanded/checkpoint.json"
-
 LINK_SAMPLE_PROB = 0.15
 MAX_LINKS_PER_PAGE = 25
 MAX_QUEUE_SIZE = 120_000
@@ -69,14 +70,27 @@ def enqueue(queue, visited, titles):
 
     return queue
 
+def sanitize_filename(title):
+    title = title.replace(" ", "_")
+    title = re.sub(INVALID_FILENAME_CHARS, "_", title)
+    return title[:180]
+
 def process_pages(pages, queue, visited, i):
     for page_id, page in pages.items():
         title = page.get("title")
         if not title:
             continue
 
-        safe = title.replace(" ", "_").replace("/", "_")
-        save_json(page, f"data/expanded/{i}_{safe}_data.json")
+        safe = sanitize_filename(title)
+
+        try:
+            save_json(
+                page,
+                f"data/expanded/{i}_{safe}_data.json"
+            )
+        except OSError:
+            fallback = f"data/expanded/{i}_page.json"
+            save_json(page, fallback)
 
         titles = sample_links(page)
         queue = enqueue(queue, visited, titles)
